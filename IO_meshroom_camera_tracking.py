@@ -30,7 +30,7 @@ bl_info = {
     'deps': '',
     'version': (0, 0, 1),
     'blender': (2, 80, 0),
-    'location': 'File > import > Meshroom sfm',
+    'location': 'File > import > Meshroom camera tracking (.sfm)',
     'warning': '',
     'wiki_url': 'https://github.com/s-leger/meshroom_sfm/',
     'tracker_url': 'https://github.com/s-leger/meshroom_sfm/issues/',
@@ -45,7 +45,11 @@ import json
 from mathutils import Matrix
 from bpy.types import Operator
 from bpy.props import StringProperty
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import (
+    ImportHelper,
+    axis_conversion,
+    orientation_helper
+)
 
 
 def get_transform(transform):
@@ -59,7 +63,7 @@ def get_transform(transform):
     ])
 
 
-def sfm_import(context, file):
+def sfm_import(self, context, file):
     helper = bpy.data.objects.new(name="Meshroom sfm origin", object_data=None)
     helper.empty_display_type = "ARROWS"
     helper.empty_display_size = 1
@@ -71,6 +75,10 @@ def sfm_import(context, file):
 
     o.parent = helper
 
+    global_matrix = axis_conversion(from_forward=self.axis_forward,
+                                    from_up=self.axis_up,
+                                    ).to_4x4()
+
     with open(file, 'r') as f:
         _j = json.load(f)
         frames = [tuple([int(view["metadata"]["Frame"]), view["poseId"]]) for view in _j['views']]
@@ -80,17 +88,18 @@ def sfm_import(context, file):
         for frame, poseId in frames:
             if poseId in poses:
                 context.scene.frame_set(frame)
-                o.matrix_world = get_transform(poses[poseId])
+                o.matrix_world = global_matrix @ get_transform(poses[poseId])
                 o.keyframe_insert("location", frame=frame)
                 o.keyframe_insert("rotation_euler", frame=frame)
 
 
+@orientation_helper(axis_forward='-Z', axis_up='Y')
 class SLEGER_OT_ImportSfm(Operator, ImportHelper):
     bl_idname = "sleger.import_sfm"
     bl_label = "Meshroom camera tracking (.sfm)"
     bl_description = "Meshroom camera tracking importer"
 
-    bl_options = {'PRESET'}
+    bl_options = {'PRESET', 'UNDO'}
     filename_ext = ".sfm"
 
     filter_glob: StringProperty(
@@ -98,10 +107,15 @@ class SLEGER_OT_ImportSfm(Operator, ImportHelper):
         options={'HIDDEN'},
     )
 
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "axis_forward")
+        layout.prop(self, "axis_up")
+
     def execute(self, context):
 
         result = {'FINISHED'}
-        sfm_import(context, self.filepath)
+        sfm_import(self, context, self.filepath)
 
         return result
 
