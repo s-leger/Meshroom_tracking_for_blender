@@ -55,15 +55,19 @@ from bpy_extras.io_utils import (
 def get_transform(transform):
     xx, xy, xz, yx, yy, yz, zx, zy, zz = map(float, transform["rotation"])
     x, y, z = map(float, transform["center"])
+    # flip y and z axis
     return Matrix([
-        [xx, yx, zx, x],
-        [xy, yy, zy, y],
-        [xz, yz, zz, z],
+        [xx, -xy, -xz, x],
+        [yx, -yy, -yz, y],
+        [zx, -zy, -zz, z],
         [0, 0, 0, 1]
     ])
 
-
 def sfm_import(self, context, file):
+    global_matrix = axis_conversion(from_forward=self.axis_forward,
+                                    from_up=self.axis_up,
+                                    ).to_4x4()
+
     helper = bpy.data.objects.new(name="Meshroom sfm origin", object_data=None)
     helper.empty_display_type = "ARROWS"
     helper.empty_display_size = 1
@@ -72,12 +76,8 @@ def sfm_import(self, context, file):
     cam = bpy.data.cameras.new("Camera Meshroom")
     o = bpy.data.objects.new("Camera Meshroom", cam)
     context.scene.collection.objects.link(o)
-
+    # o.matrix_world = global_matrix.copy()
     o.parent = helper
-
-    global_matrix = axis_conversion(from_forward=self.axis_forward,
-                                    from_up=self.axis_up,
-                                    ).to_4x4()
 
     with open(file, 'r') as f:
         _j = json.load(f)
