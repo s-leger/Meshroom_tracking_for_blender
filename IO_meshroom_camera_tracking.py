@@ -42,6 +42,7 @@ bl_info = {
 
 import bpy
 import json
+from math import atan
 from mathutils import Matrix
 from bpy.types import Operator
 from bpy.props import StringProperty
@@ -63,6 +64,12 @@ def get_transform(transform):
         [0, 0, 0, 1]
     ])
 
+def compute_h_fov(intrinsics):
+    width = float(intrinsics["width"])
+    fdist = float(intrinsics["pxFocalLength"])
+    return fdist / width
+
+
 def sfm_import(self, context, file):
     global_matrix = axis_conversion(from_forward=self.axis_forward,
                                     from_up=self.axis_up,
@@ -76,21 +83,26 @@ def sfm_import(self, context, file):
     cam = bpy.data.cameras.new("Camera Meshroom")
     o = bpy.data.objects.new("Camera Meshroom", cam)
     context.scene.collection.objects.link(o)
-    # o.matrix_world = global_matrix.copy()
     o.parent = helper
-
+    o.data.sensor_fit = "HORIZONTAL"
+    sensor_width = o.data.sensor_width
+    
     with open(file, 'r') as f:
         _j = json.load(f)
-        frames = [tuple([int(view["metadata"]["Frame"]), view["poseId"]]) for view in _j['views']]
+        frames = [tuple([int(view["metadata"]["Frame"]), view["poseId"], view["intrinsicId"]]) for view in _j['views']]
         frames.sort(key=lambda x: x[0])
-        poses = {pose["poseId"]: pose["pose"]["transform"] for pose in _j["poses"]}
+        poses = {pose["poseId"]: pose["pose"] for pose in _j["poses"]}
+        h_fovs = {i["intrinsicId"]: compute_h_fov(i) for i in _j["intrinsics"]}
 
-        for frame, poseId in frames:
+        for frame, poseId, intrinsicId in frames:
             if poseId in poses:
+                pose = poses[poseId]
                 context.scene.frame_set(frame)
-                o.matrix_world = global_matrix @ get_transform(poses[poseId])
+                o.matrix_world = global_matrix @ get_transform(pose["transform"])
+                o.data.lens = h_fovs[intrinsicId] * sensor_width
                 o.keyframe_insert("location", frame=frame)
                 o.keyframe_insert("rotation_euler", frame=frame)
+                o.data.keyframe_insert("lens", frame=frame)
 
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
