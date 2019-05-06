@@ -39,7 +39,7 @@ bl_info = {
     'category': 'Import-Export'
     }
 
-
+import os
 import bpy
 import json
 from math import atan
