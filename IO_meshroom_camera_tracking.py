@@ -70,6 +70,25 @@ def compute_h_fov(intrinsics):
     return fdist / width
 
 
+def get_frame_index(view):
+    """ use frame name from files as fallback
+    :param view:
+    :return:
+    """
+    if "Frame" in view["metadata"]:
+        return int(view["metadata"]["Frame"])
+    else:
+        filename = os.path.basename(view["path"])
+        file, ext = os.path.splitext(filename)
+        num = ""
+        while file[-1] in "01234567890":
+            num = file[-1] + num
+            file = file[:-1]
+        if num != "":
+            return int(num)
+    return -1
+
+
 def sfm_import(self, context, file):
     global_matrix = axis_conversion(from_forward=self.axis_forward,
                                     from_up=self.axis_up,
@@ -86,10 +105,10 @@ def sfm_import(self, context, file):
     o.parent = helper
     o.data.sensor_fit = "HORIZONTAL"
     sensor_width = o.data.sensor_width
-    
+
     with open(file, 'r') as f:
         _j = json.load(f)
-        frames = [tuple([int(view["metadata"]["Frame"]), view["poseId"], view["intrinsicId"]]) for view in _j['views']]
+        frames = [tuple([get_frame_index(view), view["poseId"], view["intrinsicId"]]) for view in _j['views']]
         frames.sort(key=lambda x: x[0])
         poses = {pose["poseId"]: pose["pose"] for pose in _j["poses"]}
         h_fovs = {i["intrinsicId"]: compute_h_fov(i) for i in _j["intrinsics"]}
