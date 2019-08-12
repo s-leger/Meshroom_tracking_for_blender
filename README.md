@@ -11,3 +11,5 @@ Usage
 Note: default axis order are -Z Forward and Y up
 
 This addon solve alembic import issue for animated camera
+
+You may take a look at https://github.com/SBCV/Blender-Addon-Photogrammetry-Importer as it is by far more complete than this one.
